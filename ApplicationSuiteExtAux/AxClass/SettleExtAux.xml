@@ -29,7 +29,7 @@ public class SettleExtAux
         {
             AmountCur balanceAmount = findCustTrans.remainAmountCur();
 
-            if (balanceAmount == 0)
+            //if (balanceAmount == 0)
             {
                 CustTable custTable = custTable::find(findCustTrans.AccountNum);
                 CustSettlement custSettlement;
@@ -74,36 +74,83 @@ public class SettleExtAux
         select firstonly * from findVendTrans
             where findVendTrans.Voucher == _voucher;
 
-        if (findVendTrans.RecId)
+        if (findVendTrans.RecId == 0)
         {
-            AmountCur balanceAmount = findVendTrans.remainAmountCur();
+            return;
+        }
 
-            if (balanceAmount == 0)
-            {
-                VendTable vendTable = VendTable::find(findVendTrans.AccountNum);
-                VendSettlement vendSettlement;
+        VendTable vendTable = VendTable::find(findVendTrans.AccountNum);
+        //VendSettlement vendSettlement;
 
-                select firstonly vendSettlement
-                    where vendSettlement.TransCompany == findVendTrans.dataAreaId
-                        && vendSettlement.TransRecId == findVendTrans.RecId
-                        && vendSettlement.AccountNum == findVendTrans.AccountNum;
+        //select firstonly vendSettlement
+        //    where vendSettlement.TransCompany == findVendTrans.dataAreaId
+        //        && vendSettlement.TransRecId == findVendTrans.RecId
+        //        && vendSettlement.AccountNum == findVendTrans.AccountNum;
 
-                SpecTransManager specTransManager = SpecTransManager::newRefTableId(vendTable, tablenum(VendSettlement), true);
-                specTransManager.insert(vendSettlement.DataAreaId, vendSettlement.TableId, vendSettlement.RecId, vendSettlement.SettleAmountCur, findVendTrans.CurrencyCode);
-                
-                CustVendSettlement custVendSettlement;
+        //SpecTransManager specTransManager = SpecTransManager::newRefTableId(vendTable, tablenum(VendSettlement), true);
+        //specTransManager.insert(vendSettlement.DataAreaId, vendSettlement.TableId, vendSettlement.RecId, vendSettlement.SettleAmountCur, findVendTrans.CurrencyCode);
 
-                custVendSettlement = CustVendSettlement::findByModule(ModuleCustVend::Vend, vendSettlement.RecId);
+        //CustVendSettlement custVendSettlement;
 
-                CustVendSettlementInterface intf = custVendSettlement.custVendSettlementInterface();
+        //custVendSettlement = CustVendSettlement::findByModule(ModuleCustVend::Vend, vendSettlement.RecId);
 
-                intf.markThisAndRelatedOffsets(specTransManager, findVendTrans.CurrencyCode);
+        //CustVendSettlementInterface intf = custVendSettlement.custVendSettlementInterface();
 
-                if (VendTrans::reverseTransactExtAux(vendTable, null, settleDatePrinc::DateOfPayment, vendSettlement.TransDate))
-                {
-                    specTransManager.deleteAll();
-                }
-            }
+        //intf.markThisAndRelatedOffsets(specTransManager, findVendTrans.CurrencyCode);
+
+        //if (VendTrans::reverseTransactExtAux(vendTable, null, settleDatePrinc::DateOfPayment, vendSettlement.TransDate))
+        //{
+        //    specTransManager.deleteAll();
+        //}
+
+        VendSettlement vendSettlement;
+        VendSettlement vendSettlementSecond;
+
+        SpecTransManager specTransManager = SpecTransManager::newRefTableId(vendTable, tablenum(VendSettlement), true);
+
+        select firstonly vendSettlement
+            where vendSettlement.TransCompany == findVendTrans.dataAreaId
+                && vendSettlement.TransRecId == findVendTrans.RecId
+                && vendSettlement.AccountNum == findVendTrans.AccountNum;
+        
+        if (!specTransManager.exist(vendSettlement.DataAreaId, vendSettlement.TableId, vendSettlement.RecId))
+        {
+            specTransManager.insert(vendSettlement.DataAreaId, vendSettlement.TableId, vendSettlement.RecId, vendSettlement.SettleAmountCur, findVendTrans.CurrencyCode);
+
+            CustVendTrans custVendTrans = vendSettlement.custVendSettlementInterface().custVendTrans();
+            vendSettlement.CustVendSettlement::markRelatedTaxWithholdVoucherByLine(
+                    specTransManager,
+                    custVendTrans.Voucher,
+                    custVendTrans.TransDate,
+                    vendSettlement.OffsetTransVoucher);
+        }
+
+        select firstonly vendSettlementSecond
+            where vendSettlementSecond.TransCompany == findVendTrans.dataAreaId
+                && vendSettlementSecond.OffsetRecid == findVendTrans.RecId
+                && vendSettlementSecond.AccountNum == findVendTrans.AccountNum
+                && vendSettlementSecond.SettleAmountMST == - vendSettlement.SettleAmountMST;
+
+        if (vendSettlementSecond.RecId == 0)
+        {
+            return;
+        }
+        
+        if (!specTransManager.exist(vendSettlementSecond.DataAreaId, vendSettlementSecond.TableId, vendSettlementSecond.RecId))
+        {
+            specTransManager.insert(vendSettlementSecond.DataAreaId, vendSettlementSecond.TableId, vendSettlementSecond.RecId, vendSettlementSecond.SettleAmountCur, findVendTrans.CurrencyCode);
+
+            CustVendTrans custVendTrans = vendSettlementSecond.custVendSettlementInterface().custVendTrans();
+            vendSettlementSecond.CustVendSettlement::markRelatedTaxWithholdVoucherByLine(
+                    specTransManager,
+                    custVendTrans.Voucher,
+                    custVendTrans.TransDate,
+                    vendSettlementSecond.OffsetTransVoucher);
+        }
+
+        if (VendTrans::reverseTransactExtAux(vendTable, null, settleDatePrinc::DateOfPayment, vendSettlement.TransDate))
+        {
+            specTransManager.deleteAll();
         }
     }
 
