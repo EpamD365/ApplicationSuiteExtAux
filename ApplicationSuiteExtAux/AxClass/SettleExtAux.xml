@@ -166,6 +166,12 @@ public class SettleExtAux
         //vendTransSecond.selectForUpdate(true);
         //vendTransSecond.reread();
 
+        findVendTrans.selectForUpdate(true);
+        findVendTrans.reread();
+        findVendTrans.SettleAmountCur = 0;
+        findVendTrans.SettleAmountMST = 0;
+        findVendTrans.update();
+
         //vendTranFirst.SettleAmountCur = 0;
         //vendTranFirst.SettleAmountMST = 0;
         //vendTranFirst.update();
