@@ -25,35 +25,37 @@ public class SettleExtAux
         select firstonly * from findCustTrans
             where findCustTrans.Voucher == _voucher;
 
-        if (findCustTrans.RecId)
+        if (findCustTrans.RecId == 0)
         {
-            AmountCur balanceAmount = findCustTrans.remainAmountCur();
+            return;
+        }
 
-            //if (balanceAmount == 0)
+        AmountCur balanceAmount = findCustTrans.remainAmountCur();
+
+        //if (balanceAmount == 0)
+        {
+            CustTable custTable = custTable::find(findCustTrans.AccountNum);
+            CustSettlement custSettlement;
+
+            select firstonly custSettlement
+                where custSettlement.TransCompany == findCustTrans.dataAreaId
+                    && custSettlement.TransRecId == findCustTrans.RecId
+                    && custSettlement.AccountNum == findCustTrans.AccountNum;
+
+            SpecTransManager specTransManager = SpecTransManager::newRefTableId(custTable, tablenum(custSettlement), true);
+            specTransManager.insert(custSettlement.DataAreaId, custSettlement.TableId, custSettlement.RecId, custSettlement.SettleAmountCur, findCustTrans.CurrencyCode);
+
+            CustVendSettlement custVendSettlement;
+
+            custVendSettlement = CustVendSettlement::findByModule(ModuleCustVend::Cust, custSettlement.RecId);
+
+            custVendSettlement.markThisAndRelatedOffsets(specTransManager, findCustTrans.CurrencyCode);
+
+            //custSettlement.CustVendSettlement::markOffsets(specTransManager, findCustTrans.CurrencyCode, true);
+
+            if (CustTrans::reverseTransact(custTable, null, settleDatePrinc::DateOfPayment, custSettlement.TransDate))
             {
-                CustTable custTable = custTable::find(findCustTrans.AccountNum);
-                CustSettlement custSettlement;
-
-                select firstonly custSettlement
-                    where custSettlement.TransCompany == findCustTrans.dataAreaId
-                        && custSettlement.TransRecId == findCustTrans.RecId
-                        && custSettlement.AccountNum == findCustTrans.AccountNum;
-
-                SpecTransManager specTransManager = SpecTransManager::newRefTableId(custTable, tablenum(custSettlement), true);
-                specTransManager.insert(custSettlement.DataAreaId, custSettlement.TableId, custSettlement.RecId, custSettlement.SettleAmountCur, findCustTrans.CurrencyCode);
-
-                CustVendSettlement custVendSettlement;
-
-                custVendSettlement = CustVendSettlement::findByModule(ModuleCustVend::Cust, custSettlement.RecId);
-
-                custVendSettlement.markThisAndRelatedOffsets(specTransManager, findCustTrans.CurrencyCode);
-
-                //custSettlement.CustVendSettlement::markOffsets(specTransManager, findCustTrans.CurrencyCode, true);
-
-                if (CustTrans::reverseTransact(custTable, null, settleDatePrinc::DateOfPayment, custSettlement.TransDate))
-                {
-                    specTransManager.deleteAll();
-                }
+                specTransManager.deleteAll();
             }
         }
     }
