@@ -35,6 +35,11 @@
     <Folder Include="Classes" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="AxClass\SettleExtAux">
+      <SubType>Content</SubType>
+      <Name>SettleExtAux</Name>
+      <Link>Classes\SettleExtAux</Link>
+    </Content>
     <Content Include="AxClass\VendTransExtAux_Extension">
       <SubType>Content</SubType>
       <Name>VendTransExtAux_Extension</Name>
